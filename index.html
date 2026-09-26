@@ -541,14 +541,14 @@ function buildVexMeasure(plan){
  const upperVoice=voiceOrder()[0];
  for(const e of events)if(e.voiceRole==='upper'){
   const lowerSounding=notes.some(n=>String(n.voice??'1')!==upperVoice&&n.tick<e.tick+e.duration-.01&&n.tick+n.duration>e.tick+.01);
-  e.stem=lowerSounding?'up':e.normalStem;
+  e.lowerSounding=lowerSounding;e.stem=lowerSounding?'up':e.normalStem;
  }
  for(const e of events){
  const melodyIndex=melodyStemIndex(e);
  const duration=VF_DURATION[e.type]+'d'.repeat(e.dots||0),dir=melodyIndex!==undefined?1:e.stem==='up'?1:e.stem==='down'?-1:(e.notes.length&&e.notes.reduce((s,n)=>s+(n.pos?.s??1.5),0)/e.notes.length>=1.5?1:-1);
  e.direction=dir;
  if(e.rest&&e.full&&e.voiceRole==='lower'){e.hidden=true;e.vf=new VF.GhostNote({duration:'w'});e.vf.setDuration(new VF.Fraction(plan.e-plan.t,song.ppq*4));}
- else if(e.rest){e.vf=new VF.StaveNote({keys:[e.voiceRole==='upper'?'f/5':e.voiceRole==='lower'?'e/4':e.type==='whole'?'d/5':'b/4'],duration:duration+'r',align_center:!!e.full,stem_direction:dir});if(e.full)e.vf.setDuration(new VF.Fraction(plan.e-plan.t,song.ppq*4));}
+ else if(e.rest){e.vf=new VF.StaveNote({keys:[e.voiceRole==='upper'&&e.lowerSounding?'f/5':e.voiceRole==='lower'?'e/4':e.type==='whole'?'d/5':'b/4'],duration:duration+'r',align_center:!!e.full,stem_direction:dir});if(e.full)e.vf.setDuration(new VF.Fraction(plan.e-plan.t,song.ppq*4));}
  else {const positions=e.notes.map(n=>({str:(n.pos?.s??3)+1,fret:n.ghost?'x':n.pos?.f??'?'}));e.vf=new BassTabNote({positions,duration,stem_direction:dir},e.type!=='whole');e.vf.melodyStemIndex=melodyIndex;e.vf.render_options.font='18px Arial';if(e.type!=='whole')e.vf.setStemLength(VF.Stem.HEIGHT);}
  for(let d=0;d<(e.dots||0);d++)VF.Dot.buildAndAttach([e.vf]);
  if(e.chord){e.chordAnnotation=new BassChordAnnotation(e.chord).setFont('Times New Roman',15).setJustification(VF.Annotation.HorizontalJustify.CENTER_STEM).setVerticalJustification(VF.Annotation.VerticalJustify.TOP);e.vf.addModifier(e.chordAnnotation,0);}
