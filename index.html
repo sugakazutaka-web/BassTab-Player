@@ -531,6 +531,12 @@ function melodyStemIndex(event){
   (low.tick<event.tick-.01||low.tieFrom!==undefined||low.duration>n.duration+.01||notes.some(next=>next.tieFrom===low.id))));
  candidates.sort((a,b)=>b.n.pitch-a.n.pitch);return candidates[0]?.i;
 }
+function restoreRestPositions(events,stave=null){
+ for(const e of events)if(e.rest&&!e.hidden&&e.restLine!==undefined){
+  if(e.vf.getKeyLine(0)!==e.restLine)e.vf.setKeyLine(0,e.restLine);
+  if(stave)e.vf.setStave(stave);
+ }
+}
 function buildVexMeasure(plan){
  if(plan.voicePlans){
   let parts=plan.voicePlans.map(buildVexMeasure),voices=parts.map(p=>p.voice),formatter=new VF.Formatter();
@@ -550,6 +556,7 @@ function buildVexMeasure(plan){
  if(e.rest&&e.full&&e.voiceRole==='lower'){e.hidden=true;e.vf=new VF.GhostNote({duration:'w'});e.vf.setDuration(new VF.Fraction(plan.e-plan.t,song.ppq*4));}
  else if(e.rest){e.vf=new VF.StaveNote({keys:[e.voiceRole==='upper'&&e.lowerSounding?'f/5':e.voiceRole==='lower'?'e/4':e.type==='whole'?'d/5':'b/4'],duration:duration+'r',align_center:!!e.full,stem_direction:dir});if(e.full)e.vf.setDuration(new VF.Fraction(plan.e-plan.t,song.ppq*4));}
  else {const positions=e.notes.map(n=>({str:(n.pos?.s??3)+1,fret:n.ghost?'x':n.pos?.f??'?'}));e.vf=new BassTabNote({positions,duration,stem_direction:dir},e.type!=='whole');e.vf.melodyStemIndex=melodyIndex;e.vf.render_options.font='18px Arial';if(e.type!=='whole')e.vf.setStemLength(VF.Stem.HEIGHT);}
+ if(e.rest&&!e.hidden)e.restLine=e.vf.getKeyLine(0);
  for(let d=0;d<(e.dots||0);d++)VF.Dot.buildAndAttach([e.vf]);
  if(e.chord){e.chordAnnotation=new BassChordAnnotation(e.chord).setFont('Times New Roman',15).setJustification(VF.Annotation.HorizontalJustify.CENTER_STEM).setVerticalJustification(VF.Annotation.VerticalJustify.TOP);e.vf.addModifier(e.chordAnnotation,0);}
  if(e.notes.some(n=>n.trill)||e.trill){const ornament=new VF.Ornament('tr');const acc={sharp:'#',flat:'b',natural:'n','double-sharp':'##','flat-flat':'bb'}[e.trill?.accidental];if(acc)ornament.setUpperAccidental(acc);e.vf.addModifier(ornament,0);}
@@ -577,6 +584,7 @@ function buildVexMeasure(plan){
  }
  for(const beam of beams){Object.setPrototypeOf(beam,BassBeam.prototype);beam.render_options.beam_width=4;beam.render_options.flat_beams=true;beam.render_options.stemlet_extension=7;}
  for(const tuplet of tuplets){tuplet.setBracketed(tuplet.getNotes().some(n=>!n.hasBeam()));tuplet.setTupletLocation(tuplet.getNotes()[0].getStemDirection()===1?1:-1);if(tuplet.getNotes().some(n=>n.getPositions?.().some(p=>p.str===1)))tuplet.options.y_offset=tuplet.getNotes()[0].getStemDirection()===1?-12:12;}
+ restoreRestPositions(events);
  const voice=new VF.Voice({num_beats:plan.m.num,beat_value:plan.m.den}).setMode(VF.Voice.Mode.SOFT).addTickables(events.map(e=>e.vf));
  // All layout spacing is computed by Formatter, including annotations and dots.
  const formatter=new VF.Formatter().joinVoices([voice]),natural=formatter.preCalculateMinTotalWidth([voice])+105;
@@ -632,7 +640,7 @@ function renderScore(){
  stave.setContext(context).draw();
  context.save();context.setFont(stave.textFont);context.setFillStyle('#a7b2ae');
  const measureText=String(p.number??p.index+1);context.openGroup('measure-number');context.fillText(measureText,stave.getX()-context.measureText(measureText).width/2,stave.getYForTopText(0)+3);context.closeGroup();context.restore();for(const e of p.events)e.vf.setStave(stave);
- p.formatter.formatToStave(p.voices||[p.voice],stave);for(const voice of p.voices||[p.voice])voice.draw(context,stave);for(const beam of p.beams)beam.setContext(context).draw();for(const tuple of p.tuplets)tuple.setContext(context).draw();
+ p.formatter.formatToStave(p.voices||[p.voice],stave);restoreRestPositions(p.events,stave);for(const voice of p.voices||[p.voice])voice.draw(context,stave);for(const beam of p.beams)beam.setContext(context).draw();for(const tuple of p.tuplets)tuple.setContext(context).draw();
  scoreLayouts.push({...p,systemRect:{x:0,y:ri*rowHeight,w:width,h:rowHeight},onsets:p.events.map(e=>e.tick)});x+=w;
  });});
  drawVexLinks(plans,context);installVexInteractions(plans);installChordInteractions(plans);updateBeatMarker();updateRhythmToolbar();host.dataset.renderState='ready';host.dataset.engine='VexFlow 4.2.5';
