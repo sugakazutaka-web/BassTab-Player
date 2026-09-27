@@ -524,14 +524,7 @@ function notationMeasures(){
  if(order.length<2)return voiceNotationMeasures(display);
  let perVoice=order.map((voice,i)=>{
   let ns=display.filter(n=>String(n.voice??'1')===voice);
-  if(i>0){
-   let combined=[],byId=new Map();
-   for(let n of ns){let previous=byId.get(n.tieFrom);
-    if(previous&&Math.abs(previous.tick+previous.duration-n.tick)<.01){
-     previous.duration+=n.duration;previous.tiedIds.push(n.id);previous.notationParts=[{tick:previous.tick,duration:previous.duration}];byId.set(n.id,previous);
-    }else{let copy={...n,tiedIds:[n.id]};combined.push(copy);byId.set(n.id,copy);}
-   }ns=combined;
-  }
+  // Preserve each imported tie segment and its own selectable note ID.
   return voiceNotationMeasures(ns,voice,i===0?'upper':'lower');
  });
  return perVoice[0].map((bar,i)=>({...bar,voicePlans:perVoice.map(v=>v[i]),events:perVoice.flatMap(v=>v[i].events)}));
@@ -641,6 +634,15 @@ function drawTabTuplet(tuple,context){
  const group=context.openGroup('tab-tuplet');
  tuple.setContext(context).draw();context.closeGroup();
  const notes=tuple.getNotes(),beam=notes[0]?.getBeam();
+ if(tuple.bracketed&&tuple.location===-1&&group?.getBBox){
+  // Keep lower brackets close to the actual notes/stem tips, not a fixed staff line.
+  const bottom=Math.max(...notes.flatMap(n=>{
+   const ys=n.getYs();if(!n.hasStem())return ys.map(y=>y+8);
+   const stem=n.getStemExtents();return [...ys.map(y=>y+8),stem.topY,stem.baseY];
+  }));
+  const dy=Math.min(0,bottom+6-group.getBBox().y);
+  group.setAttribute('transform',`translate(0 ${dy})`);return;
+ }
  if(tuple.bracketed||!beam||!notes.every(n=>n.getBeam()===beam)||!group?.getBBox)return;
  const box=group.getBBox(),first=beam.getNotes()[0],direction=notes[0].getStemDirection();
  const beamY=x=>beam.getSlopeY(x,first.getStemX(),beam.getBeamYToDraw(),beam.slope);
